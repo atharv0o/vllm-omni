@@ -346,9 +346,10 @@ def test_create_hsdp_mesh(cpu_process_group, mocker):
     mock_init = mocker.patch("vllm_omni.diffusion.distributed.hsdp.init_device_mesh")
     mock_mesh = mocker.MagicMock()
     mock_init.return_value = mock_mesh
+    mock_world_size = mocker.patch("torch.distributed.get_world_size", return_value=1)
 
     # 1. replicate_size == 1: creates a 1D DeviceMesh ("shard",)
-    mesh_1d = _create_hsdp_mesh("cpu", replicate_size=1, shard_pg=dist.group.WORLD)
+    mesh_1d = _create_hsdp_mesh("cpu", replicate_size=1, shard_size=1)
     assert mesh_1d is mock_mesh
     mock_init.assert_called_once_with(
         "cpu",
@@ -358,7 +359,8 @@ def test_create_hsdp_mesh(cpu_process_group, mocker):
 
     # 2. replicate_size > 1: creates a 2D DeviceMesh ("replicate", "shard")
     mock_init.reset_mock()
-    mesh_2d = _create_hsdp_mesh("cpu", replicate_size=2, shard_pg=dist.group.WORLD)
+    mock_world_size.return_value = 2
+    mesh_2d = _create_hsdp_mesh("cpu", replicate_size=2, shard_size=1)
     assert mesh_2d is mock_mesh
     mock_init.assert_called_once_with(
         "cpu",
@@ -368,6 +370,6 @@ def test_create_hsdp_mesh(cpu_process_group, mocker):
 
     # 3. replicate_size <= 0: rejected with ValueError
     with pytest.raises(ValueError, match="HSDP replica size must be a positive integer"):
-        _create_hsdp_mesh("cpu", replicate_size=0, shard_pg=dist.group.WORLD)
+        _create_hsdp_mesh("cpu", replicate_size=0, shard_size=1)
     with pytest.raises(ValueError, match="HSDP replica size must be a positive integer"):
-        _create_hsdp_mesh("cpu", replicate_size=-1, shard_pg=dist.group.WORLD)
+        _create_hsdp_mesh("cpu", replicate_size=-1, shard_size=1)
